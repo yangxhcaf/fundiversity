@@ -1,7 +1,11 @@
 #' Compute Rao's entropy index (Rao's Q)
 #'
 #' @param traits The matrix dataset for which you want to compute the index
-#' @param sp_com Abundance matrix
+#' @param sp_com Site-species matrix with sites as rows and species as columns
+#'               if not provided, `fd_raoq()` considers all species with equal
+#'               abundance in a single site
+#' @param dist_matrix A dissimilarity matrix that can be provided instead of a
+#'                    trait data.frame
 #'
 #' @examples
 #' data(traits_birds)
@@ -16,7 +20,15 @@
 #' \doi{10.1007/s10651-005-1037-2}
 #'
 #' @export
-fd_raoq<- function(traits, sp_com) {
+fd_raoq <- function(traits, sp_com, dist_matrix = NULL) {
+
+  if ((!is.null(traits) & !is.null(dist_matrix)) |
+      (is.null(traits) & is.null(dist_matrix))) {
+      stop(
+        "Please provide either a trait dataset or a dissimilarity matrix",
+        call. = FALSE
+      )
+  }
 
   if (is.data.frame(traits)) {
     traits <- as.matrix(traits)
@@ -26,33 +38,34 @@ fd_raoq<- function(traits, sp_com) {
     traits <- as.matrix(traits)
   }
 
+  d <- dist_matrix
+
+  if (is.null(dist_matrix)) {
+    d <- as.matrix(dist(traits))
+  }
+
   if (!missing(sp_com)) {
 
-    abund <- setNames(
-      colSums(sp_com),
-      colnames(sp_com)
-    )
-
-    if (!all(names(traits) %in% names(abund))) {
+    if (!all(labels(d) %in% colnames(sp_comb))) {
       stop(
         "Please provide a sp_com matrix that contains all species ",
-        "from your traits dataset.", call. = FALSE
+        "from your traits dataset/dissimilarity matrix.", call. = FALSE
       )
     }
 
-    abund[match(abund, rownames(traits))] <- abund
+    sp_com <- sp_comb[,labels(d)]
 
   } else {
 
-    abund <- setNames(
-      rep_len(1, nrow(traits)),
-      rownames(traits))
+    sp_comb <- matrix(1, ncol = length(labels(d)),
+                      dimnames = list("s1", labels(d)))
 
   }
 
-  abund <- abund / sum(abund)
+  # Standardize abundance per site
+  sp_com <- sweep(sp_com, 1, rowSums(sp_com), "/")
 
-  d <- as.matrix(dist(traits))
+
 
   Q <- sum(combn(length(abund), 2, function(ij) {
     i <- ij[1]
